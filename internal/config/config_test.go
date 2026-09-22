@@ -52,6 +52,38 @@ func TestLoadMissingFileFallsBackToDefault(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsUnknownKey(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "c.toml")
+	_ = os.WriteFile(p, []byte(`
+default_provider = "local"
+bogus_key = true
+[providers.local]
+type = "openai"
+model = "m"
+`), 0o644)
+	if _, err := Load(p); err == nil {
+		t.Fatal("expected error for unknown key")
+	}
+}
+
+func TestWriteRoundTrip(t *testing.T) {
+	c := Default()
+	p := filepath.Join(t.TempDir(), "c.toml")
+	if err := c.Write(p); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DefaultProvider != c.DefaultProvider || got.Listen != c.Listen || got.CloseAfter != c.CloseAfter {
+		t.Fatalf("round trip mismatch: got=%+v want=%+v", got, c)
+	}
+	if got.Providers["local"].Model != c.Providers["local"].Model {
+		t.Fatalf("provider round trip mismatch: got=%+v want=%+v", got.Providers["local"], c.Providers["local"])
+	}
+}
+
 func TestExampleDecodes(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "x")
 	c, err := Load("example.toml")

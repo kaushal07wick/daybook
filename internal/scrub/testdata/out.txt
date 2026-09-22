@@ -1,7 +1,9 @@
-ssh root@<ip-1> -p <secret> then curl http://user:<secret<secret>
+ssh root@<ip-1> -p <secret> then curl http://user:<secret>@example.com/x
 password=<secret> token: <secret> Authorization: Bearer <secret>
 export ANTHROPIC_API_KEY=<key>
 aws <key> and <key> and <key>
-mail <email-1>, again <ip-1> and fe80::<ip-3>
+mail <email-1>, again <ip-1> and <ip-2>
 <private-key>
 Client <redacted-1> asked; also <redacted-1> lowercase. sshpass -p <secret> ssh x
+backup replica at <ip-3> tonight
+deploy at 12:30:45 ratio 16:9
