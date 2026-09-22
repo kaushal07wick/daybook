@@ -1,0 +1,31 @@
+version: 2
+project_name: daybook
+builds:
+  - main: ./cmd/daybook
+    env: [CGO_ENABLED=0]
+    goos: [darwin]
+    goarch: [arm64, amd64]
+    ldflags: [-s -w -X main.version={{.Version}}]
+archives:
+  - formats: [tar.gz]
+checksum: { name_template: checksums.txt }
+brews:
+  - repository: { owner: kaushal07wick, name: homebrew-tap }
+    homepage: https://github.com/kaushal07wick/daybook
+    description: Daily and weekly digests of your AI-coding sessions, summarised locally
+    license: MIT
+    install: bin.install "daybook"
+    caveats: |
+      Run `daybook install` to start the background agent, then open
+      http://127.0.0.1:7331. Local summaries need Ollama: `brew install ollama`.
+    service: |
+      run [opt_bin/"daybook", "serve"]
+      keep_alive true
+      log_path var/"log/daybook.log"
+      error_log_path var/"log/daybook.log"
+changelog:
+  use: github
+  groups:
+    - { title: Features, regexp: '^feat' }
+    - { title: Fixes, regexp: '^fix' }
+    - { title: Other, order: 999 }

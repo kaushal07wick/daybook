@@ -1,0 +1,14 @@
+name: New agent source
+description: Ask for (or offer) support for another AI coding agent's logs
+labels: [source, help wanted]
+body:
+  - type: input
+    id: agent
+    attributes: { label: Agent, placeholder: "Cursor, opencode, Aider…" }
+    validations: { required: true }
+  - type: input
+    id: path
+    attributes: { label: Where it writes logs, placeholder: "~/.cursor/…" }
+  - type: textarea
+    id: sample
+    attributes: { label: Synthetic sample of 3-5 log lines, description: Make them up or scrub them. No real data. }
