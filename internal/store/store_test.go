@@ -18,6 +18,13 @@ func TestOpenMigratesToV1(t *testing.T) {
 	if v != 1 {
 		t.Fatalf("user_version = %d, want 1", v)
 	}
+	var fk int
+	if err := s.DB().QueryRowContext(context.Background(), "PRAGMA foreign_keys").Scan(&fk); err != nil {
+		t.Fatal(err)
+	}
+	if fk != 1 {
+		t.Fatalf("foreign_keys = %d, want 1", fk)
+	}
 	for _, tbl := range []string{"sources", "sessions", "events", "summaries", "digests", "terms", "term_links", "fts"} {
 		var n int
 		if err := s.DB().QueryRowContext(context.Background(), `SELECT count(*) FROM sqlite_master WHERE name = ?`, tbl).Scan(&n); err != nil || n != 1 {

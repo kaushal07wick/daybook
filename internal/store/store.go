@@ -24,10 +24,7 @@ type Store struct {
 // Open opens (or creates) the database at path and migrates it.
 // ":memory:" is accepted for tests.
 func Open(path string) (*Store, error) {
-	dsn := path
-	if path != ":memory:" {
-		dsn = "file:" + path + "?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)"
-	}
+	dsn := "file:" + path + "?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
