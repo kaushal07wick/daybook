@@ -67,9 +67,12 @@ func New(c Config) (Provider, error) {
 	return nil, fmt.Errorf("provider %q: unknown type %q (want openai|anthropic)", c.Name, c.Type)
 }
 
-// EstimateTokens is a cheap upper-ish bound used for chunking.
-// ponytail: chars/4; swap for a real tokenizer if chunking misfires.
-func EstimateTokens(s string) int { return len(s)/4 + 1 }
+// EstimateTokens is a cheap upper-ish bound used for chunking. Agent
+// transcripts are shell- and log-heavy and tokenise at ~2.9 chars/token
+// (measured on qwen2.5 with Ollama: chars/4 put p90 prompts at 3843 of a
+// 4096 context), so chars/3.
+// ponytail: swap for a real tokenizer if chunking misfires again.
+func EstimateTokens(s string) int { return len(s)/3 + 1 }
 
 func statusErr(resp *http.Response, body []byte) error {
 	if resp.StatusCode == http.StatusTooManyRequests {

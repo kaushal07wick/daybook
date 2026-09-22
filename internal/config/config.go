@@ -53,7 +53,10 @@ func Path() string {
 // Default is the zero-config setup: local Ollama, no cloud.
 func Default() Config {
 	c := Config{DefaultProvider: "local", Providers: map[string]ProviderBlock{
-		"local": {Type: "openai", BaseURL: ollamaURL + "/v1", Model: "qwen2.5:3b"},
+		// Ollama serves models at a 4096-token context unless
+		// OLLAMA_CONTEXT_LENGTH says otherwise, and its OpenAI endpoint
+		// silently truncates longer prompts, so budget well under that.
+		"local": {Type: "openai", BaseURL: ollamaURL + "/v1", Model: "qwen2.5:3b", MaxInputTokens: 3000},
 	}}
 	c.fill()
 	return c
