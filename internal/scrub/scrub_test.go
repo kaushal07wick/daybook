@@ -23,3 +23,13 @@ func TestPlaceholdersAreStable(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestAdjacentIPv6AndIdempotence(t *testing.T) {
+	got := Text("fe80::1,2001:db8::1", nil)
+	if got != "<ip-1>,<ip-2>" {
+		t.Fatalf("got %q", got)
+	}
+	if again := Text(got, nil); again != got {
+		t.Fatalf("not idempotent: got %q", again)
+	}
+}

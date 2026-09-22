@@ -7,3 +7,5 @@ mail <email-1>, again <ip-1> and <ip-2>
 Client <redacted-1> asked; also <redacted-1> lowercase. sshpass -p <secret> ssh x
 backup replica at <ip-3> tonight
 deploy at 12:30:45 ratio 16:9
+hosts: <ip-4>,<ip-5> done
+reach <ip-3>. then host:<ip-4>

@@ -22,13 +22,20 @@ var (
 	keyShape   = regexp.MustCompile(`\b(?:sk-[A-Za-z0-9_-]{20,}|AKIA[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{30,}|xox[abp]-[A-Za-z0-9-]{10,}|[A-Fa-f0-9]{32,}|[A-Za-z0-9+/]{40,}={0,2})\b`)
 	email      = regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`)
 	ipv4       = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
-	// ipv6Candidate finds runs of hex/colon/dot characters that contain at
-	// least one colon; net.ParseIP then decides which candidates are real
-	// addresses. That correctly handles "::" compression (which a
-	// fixed-group-count regex can't), while still leaving colon-bearing
-	// non-addresses like "12:30:45" or "16:9" untouched.
-	ipv6Candidate = regexp.MustCompile(`(^|[^0-9A-Fa-f:.])([0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*)($|[^0-9A-Fa-f:.])`)
+	// ipv6Run is a maximal-munch scan for hex/colon/dot characters: no
+	// boundary groups, so it never consumes a separator a neighbouring
+	// match needs (that was the bug in the boundary-group version — two
+	// addresses one comma apart would have the comma eaten as the first
+	// match's boundary, hiding the second from the scan entirely). Each run
+	// is validated with net.ParseIP in the callback below, which is what
+	// lets "::" compression through while rejecting colon-bearing
+	// non-addresses like "12:30:45" or "16:9".
+	ipv6Run = regexp.MustCompile(`[0-9A-Fa-f:.]+`)
 )
+
+func isHexByte(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')
+}
 
 // Text returns s with secrets replaced by stable placeholders. The same IP,
 // email or redact term maps to the same placeholder within one call.
@@ -90,13 +97,34 @@ func redactIPs(s string) string {
 		return fmt.Sprintf("<ip-%d>", n)
 	}
 	s = ipv4.ReplaceAllStringFunc(s, assign)
-	s = ipv6Candidate.ReplaceAllStringFunc(s, func(m string) string {
-		sub := ipv6Candidate.FindStringSubmatch(m)
-		pre, tok, post := sub[1], sub[2], sub[3]
-		if !strings.Contains(tok, ":") || net.ParseIP(tok) == nil {
+	s = ipv6Run.ReplaceAllStringFunc(s, func(m string) string {
+		if !strings.Contains(m, ":") {
 			return m
 		}
-		return pre + assign(tok) + post
+		// A run picks up a delimiter's colon when nothing separates it from
+		// the address ("host:fe80::1"), and a sentence's trailing "."
+		// when nothing separates it from the address ("2001:db8::1.").
+		// Try the whole run first, then each way of peeling one of those
+		// off, and keep whichever parses as a real address.
+		hasDelimPrefix := len(m) >= 2 && m[0] == ':' && m[1] != ':' && isHexByte(m[1])
+		hasPunctSuffix := len(m) >= 2 && (m[len(m)-1] == '.' || m[len(m)-1] == ':')
+		var prefix, core, suffix string
+		try := func(p, c, sf string) bool {
+			if net.ParseIP(c) == nil {
+				return false
+			}
+			prefix, core, suffix = p, c, sf
+			return true
+		}
+		switch {
+		case try("", m, ""):
+		case hasPunctSuffix && try("", m[:len(m)-1], m[len(m)-1:]):
+		case hasDelimPrefix && try(m[:1], m[1:], ""):
+		case hasDelimPrefix && hasPunctSuffix && try(m[:1], m[1:len(m)-1], m[len(m)-1:]):
+		default:
+			return m
+		}
+		return prefix + assign(core) + suffix
 	})
 	return s
 }
