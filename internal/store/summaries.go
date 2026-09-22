@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"modernc.org/sqlite"
@@ -49,14 +50,21 @@ func (s *Store) PutSummary(x Summary) error {
 			return err
 		}
 		if x.JSON == "" {
-			return nil
+			// A failed re-summarise must not leave a stale FTS row from an
+			// earlier successful summary of the same session.
+			return deleteFTS(ctx, tx, "session", x.SessionID)
 		}
 		return putFTS(ctx, tx, "session", x.SessionID, x.JSON)
 	})
 }
 
+func deleteFTS(ctx context.Context, tx *sql.Tx, kind, key string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM fts WHERE kind = ? AND key = ?`, kind, key)
+	return err
+}
+
 func putFTS(ctx context.Context, tx *sql.Tx, kind, key, body string) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM fts WHERE kind = ? AND key = ?`, kind, key); err != nil {
+	if err := deleteFTS(ctx, tx, kind, key); err != nil {
 		return err
 	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO fts(kind,key,body) VALUES(?,?,?)`, kind, key, body)
@@ -80,9 +88,15 @@ func (s *Store) Summary(sessionID string) (Summary, bool, error) {
 	return x, true, nil
 }
 
-// Unsummarized returns closed sessions with no summary row, oldest first.
-func (s *Store) Unsummarized(limit int) ([]Session, error) {
-	rows, err := s.db.QueryContext(context.Background(), `SELECT `+sessionCols+` FROM sessions s WHERE closed = 1 AND NOT EXISTS (SELECT 1 FROM summaries m WHERE m.session_id = s.id) ORDER BY ended_at LIMIT ?`, limit)
+// Unsummarized returns closed sessions with no summary row, or with a failed
+// summary (json IS NULL) that was attempted with a different provider/model
+// than the one given — so a provider/model change retries past failures.
+// Oldest first.
+func (s *Store) Unsummarized(limit int, provider, model string) ([]Session, error) {
+	rows, err := s.db.QueryContext(context.Background(), `SELECT `+sessionCols+` FROM sessions s WHERE closed = 1 AND (
+		NOT EXISTS (SELECT 1 FROM summaries m WHERE m.session_id = s.id)
+		OR EXISTS (SELECT 1 FROM summaries m WHERE m.session_id = s.id AND m.json IS NULL AND (m.provider != ? OR m.model != ?))
+	) ORDER BY ended_at LIMIT ?`, provider, model, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +179,9 @@ func (s *Store) DigestKeys(period string) ([]string, error) {
 	return out, rows.Err()
 }
 
-// UpsertTerms records ledger terms seen in a session. terms maps kind → values.
+// UpsertTerms records ledger terms seen in a session. terms maps kind →
+// values. n counts distinct sessions a term appeared in, so re-running this
+// for a session/term pair already on record only refreshes the timestamps.
 func (s *Store) UpsertTerms(sessionID string, at time.Time, terms map[string][]string) error {
 	return s.Write(func(tx *sql.Tx) error {
 		ctx := context.Background()
@@ -174,12 +190,24 @@ func (s *Store) UpsertTerms(sessionID string, at time.Time, terms map[string][]s
 				if v == "" {
 					continue
 				}
-				if _, err := tx.ExecContext(ctx, `INSERT INTO terms(term,kind,first_seen,last_seen,n) VALUES(?,?,?,?,1)
-					ON CONFLICT(term,kind) DO UPDATE SET last_seen = max(last_seen, excluded.last_seen), first_seen = min(first_seen, excluded.first_seen), n = n + 1`,
-					v, kind, at.Unix(), at.Unix()); err != nil {
+				res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO term_links(term,kind,session_id) VALUES(?,?,?)`, v, kind, sessionID)
+				if err != nil {
 					return err
 				}
-				if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO term_links(term,kind,session_id) VALUES(?,?,?)`, v, kind, sessionID); err != nil {
+				linked, err := res.RowsAffected()
+				if err != nil {
+					return err
+				}
+				if linked > 0 {
+					if _, err := tx.ExecContext(ctx, `INSERT INTO terms(term,kind,first_seen,last_seen,n) VALUES(?,?,?,?,1)
+						ON CONFLICT(term,kind) DO UPDATE SET last_seen = max(last_seen, excluded.last_seen), first_seen = min(first_seen, excluded.first_seen), n = n + 1`,
+						v, kind, at.Unix(), at.Unix()); err != nil {
+						return err
+					}
+					continue
+				}
+				if _, err := tx.ExecContext(ctx, `UPDATE terms SET last_seen = max(last_seen, ?), first_seen = min(first_seen, ?) WHERE term = ? AND kind = ?`,
+					at.Unix(), at.Unix(), v, kind); err != nil {
 					return err
 				}
 			}
@@ -226,14 +254,33 @@ func (s *Store) TermSessions(term, kind string) ([]string, error) {
 	return out, rows.Err()
 }
 
+// isFTS5QueryError reports whether a code-1 SQLite error message is one of
+// the known shapes fts5's query-expression parser produces for bad input.
+func isFTS5QueryError(msg string) bool {
+	msg = strings.ToLower(msg)
+	return strings.Contains(msg, "fts5") || strings.Contains(msg, "unterminated string")
+}
+
 // Search runs an FTS5 query over summaries and digests. A query FTS5 can't
 // parse (unbalanced quotes, dangling operators) is treated as "no hits"
-// rather than an error — this feeds a loopback search box.
+// rather than an error — this feeds a loopback search box. Any other SQLite
+// error (locked, corrupt, I/O, …) still propagates: only a genuine FTS5
+// syntax error is swallowed.
+//
+// The query text here is fixed (only the MATCH argument is user input, and
+// it's passed as a bound parameter, never spliced into SQL), so a code-1
+// "SQL logic error" from this exact statement can only come from fts5's own
+// query-expression parser rejecting that argument — never from a corrupt
+// database or a genuine SQL error, which report their own distinct codes.
+// SQLite's own message text isn't consistent (some say "fts5: syntax error
+// near ...", others just "unterminated string" for a dangling quote), so we
+// match on the code and the known message shapes rather than requiring a
+// literal "fts5" substring, which would miss the unterminated-quote case.
 func (s *Store) Search(q string, limit int) ([]Hit, error) {
 	rows, err := s.db.QueryContext(context.Background(), `SELECT kind, key, snippet(fts, 2, '<b>', '</b>', '…', 12) FROM fts WHERE fts MATCH ? ORDER BY rank LIMIT ?`, q, limit)
 	if err != nil {
 		var se *sqlite.Error
-		if errors.As(err, &se) {
+		if errors.As(err, &se) && se.Code() == 1 && isFTS5QueryError(se.Error()) {
 			return nil, nil
 		}
 		return nil, err

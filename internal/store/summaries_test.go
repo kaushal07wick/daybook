@@ -16,12 +16,12 @@ func seed(t *testing.T) (*Store, time.Time) {
 
 func TestUnsummarizedThenPut(t *testing.T) {
 	s, t0 := seed(t)
-	ids, _ := s.Unsummarized(10)
+	ids, _ := s.Unsummarized(10, "p", "m")
 	if len(ids) != 2 || ids[0].ID != "a" {
 		t.Fatalf("%+v", ids)
 	}
 	_ = s.PutSummary(Summary{SessionID: "a", Provider: "p", Model: "m", JSON: `{"headline":"fixed nvenc on box"}`, CreatedAt: t0})
-	ids, _ = s.Unsummarized(10)
+	ids, _ = s.Unsummarized(10, "p", "m")
 	if len(ids) != 1 || ids[0].ID != "b" {
 		t.Fatalf("%+v", ids)
 	}
@@ -37,6 +37,37 @@ func TestUnsummarizedThenPut(t *testing.T) {
 	if len(sums) != 1 {
 		t.Fatalf("%+v", sums)
 	}
+
+	// A failed re-summarise must delete the stale FTS row left by the
+	// earlier successful summary of the same session.
+	_ = s.PutSummary(Summary{SessionID: "a", Provider: "p", Model: "m", JSON: "", CreatedAt: t0})
+	hits, _ = s.Search("nvenc", 5)
+	if len(hits) != 0 {
+		t.Fatalf("expected stale fts row removed after failed re-summary: %+v", hits)
+	}
+}
+
+func TestUnsummarizedRetriesFailedSummaryOnProviderChange(t *testing.T) {
+	s, t0 := seed(t)
+	_ = s.PutSummary(Summary{SessionID: "a", Provider: "p", Model: "m", JSON: "", CreatedAt: t0})
+
+	ids, _ := s.Unsummarized(10, "p", "m")
+	for _, x := range ids {
+		if x.ID == "a" {
+			t.Fatalf("expected 'a' excluded when provider/model unchanged: %+v", ids)
+		}
+	}
+
+	ids, _ = s.Unsummarized(10, "p", "m2")
+	found := false
+	for _, x := range ids {
+		if x.ID == "a" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected 'a' retried on model change: %+v", ids)
+	}
 }
 
 func TestTerms(t *testing.T) {
@@ -48,6 +79,18 @@ func TestTerms(t *testing.T) {
 		t.Fatalf("%+v", terms)
 	}
 	links, _ := s.TermSessions("TensorRT", "tech")
+	if len(links) != 2 {
+		t.Fatalf("%v", links)
+	}
+
+	// Re-seeing the same term in the same session must not inflate n or
+	// duplicate the session link.
+	_ = s.UpsertTerms("a", t0, map[string][]string{"tech": {"TensorRT"}})
+	terms, _ = s.Terms("tech", 10)
+	if len(terms) != 2 || terms[0].Term != "TensorRT" || terms[0].N != 2 {
+		t.Fatalf("%+v", terms)
+	}
+	links, _ = s.TermSessions("TensorRT", "tech")
 	if len(links) != 2 {
 		t.Fatalf("%v", links)
 	}
