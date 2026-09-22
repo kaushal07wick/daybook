@@ -1,0 +1,10 @@
+{"timestamp":"2026-04-04T11:49:03.137Z","type":"session_meta","payload":{"id":"c-1","timestamp":"2026-04-04T11:47:38.931Z","cwd":"/home/me/proj/web","originator":"codex-tui"}}
+{"timestamp":"2026-04-04T11:49:03.139Z","type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"<permissions instructions>..."}]}}
+{"timestamp":"2026-04-04T11:49:03.139Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>x</environment_context>"}]}}
+{"timestamp":"2026-04-04T11:49:03.140Z","type":"event_msg","payload":{"type":"user_message","message":"show me the network config"}}
+{"timestamp":"2026-04-04T11:49:13.174Z","type":"response_item","payload":{"type":"reasoning","summary":[],"encrypted_content":"zzz"}}
+{"timestamp":"2026-04-04T11:49:14.033Z","type":"event_msg","payload":{"type":"agent_message","message":"Collecting it now.","phase":"commentary"}}
+{"timestamp":"2026-04-04T11:49:14.033Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Collecting it now."}]}}
+{"timestamp":"2026-04-04T11:49:19.435Z","type":"response_item","payload":{"type":"function_call","name":"exec_command","call_id":"call_1","arguments":"{\"cmd\":\"ip -brief addr\"}"}}
+{"timestamp":"2026-04-04T11:49:19.537Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_1","output":"eth0 UP 10.0.0.5/24"}}
+{"timestamp":"2026-04-04T11:50:12.135Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"t","last_agent_message":"done"}}
