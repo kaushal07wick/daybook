@@ -32,7 +32,7 @@ if it is gone, `git log` is the record).
 | 6 | ingest walk, `backfill --no-llm`, `status` (M1) | done, reviewed — 117 files → 113 sessions / 68k events in 7 s |
 | 7–9 | `scrub`, `provider` (openai, anthropic), `config` | done, reviewed (scrub had 2 fix rounds) |
 | 10 | store summaries / digests / terms / FTS | done, reviewed |
-| 11 | `internal/summarize` + `backfill` wiring (M2) | committed `d5c422f`; fix round in progress: native `ollama` provider + prompt tune |
+| 11 | `internal/summarize` + `backfill` wiring (M2) | `d5c422f` reviewed-pending; **WIP commit on top**: native `ollama` provider (`internal/provider/ollama.go`, num_ctx) + prompt tune + 800-rune tool cap — lint/tests green, **re-bake NOT yet run**. Resume: run the bake in the fix-round message in `progress.md` (Ruling 16), then task review. |
 | 12 | day/week digests + `digest` cmd | not started |
 | 13 | fsnotify watcher + scheduler + `serve` | not started |
 | 14 | web UI (`internal/web`, html/template, embedded) | not started |

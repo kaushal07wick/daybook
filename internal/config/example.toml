@@ -1,10 +1,19 @@
 default_provider = "local"
 
 [providers.local]
-type     = "openai"                      # openai-compatible chat completions
-base_url = "http://127.0.0.1:11434/v1"
+type     = "ollama"                      # native Ollama /api/chat, sets num_ctx
+base_url = "http://127.0.0.1:11434"
 model    = "qwen2.5:7b"
 cloud    = false
+# num_ctx = 16384                        # defaults to 16384 if unset
+
+# Any other OpenAI-compatible server (LM Studio, vLLM, llama.cpp, mlx-lm's
+# server, …) uses the generic openai type instead:
+# [providers.mlx]
+# type     = "openai"
+# base_url = "http://127.0.0.1:8085/v1"
+# model    = "qwen2.5:7b"
+# cloud    = false
 
 [providers.claude]
 type        = "anthropic"

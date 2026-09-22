@@ -128,7 +128,7 @@ func (z *Summarizer) Session(ctx context.Context, sess store.Session) error {
 	if err := z.Store.PutSummary(rec); err != nil {
 		return err
 	}
-	z.log().Info("summarised", "session", sess.ID, "project", sess.Project, "outcome", sum.Outcome, "ms", time.Since(start).Milliseconds())
+	z.log().Info("summarised", "session", sess.ID, "project", sess.Project, "outcome", sum.Outcome, "chunks", len(chunks), "ms", time.Since(start).Milliseconds())
 	return z.Store.UpsertTerms(sess.ID, sess.EndedAt, map[string][]string{
 		"tech": sum.Tech, "number": sum.Numbers, "host": sum.Hosts, "project": {sum.Project},
 	})

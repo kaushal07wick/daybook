@@ -39,6 +39,7 @@ type Config struct {
 	Name, Type, BaseURL, Model, APIKey string
 	Cloud                              bool
 	MaxInputTokens, Concurrency        int
+	NumCtx                             int // ollama only: context window passed as options.num_ctx
 	Timeout                            time.Duration
 }
 
@@ -47,6 +48,14 @@ var ErrRateLimited = errors.New("rate limited")
 
 // New builds a Provider from config.
 func New(c Config) (Provider, error) {
+	if c.Type == "ollama" {
+		if c.NumCtx == 0 {
+			c.NumCtx = 16384
+		}
+		if c.MaxInputTokens == 0 {
+			c.MaxInputTokens = c.NumCtx * 3 / 4
+		}
+	}
 	if c.MaxInputTokens == 0 {
 		c.MaxInputTokens = 24_000
 	}
@@ -58,13 +67,15 @@ func New(c Config) (Provider, error) {
 	switch c.Type {
 	case "openai":
 		return &openAI{c: c, hc: client}, nil
+	case "ollama":
+		return &ollama{c: c, hc: client}, nil
 	case "anthropic":
 		if c.BaseURL == "" {
 			c.BaseURL = "https://api.anthropic.com"
 		}
 		return &anthropic{c: c, hc: client}, nil
 	}
-	return nil, fmt.Errorf("provider %q: unknown type %q (want openai|anthropic)", c.Name, c.Type)
+	return nil, fmt.Errorf("provider %q: unknown type %q (want openai|ollama|anthropic)", c.Name, c.Type)
 }
 
 // EstimateTokens is a cheap upper-ish bound used for chunking. Agent

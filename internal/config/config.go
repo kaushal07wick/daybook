@@ -25,6 +25,7 @@ type ProviderBlock struct {
 	Cloud          bool   `toml:"cloud"`
 	MaxInputTokens int    `toml:"max_input_tokens"`
 	Concurrency    int    `toml:"concurrency"`
+	NumCtx         int    `toml:"num_ctx"`
 }
 
 // Config is the whole file.
@@ -50,13 +51,13 @@ func Path() string {
 	return filepath.Join(home, ".config", "daybook", "config.toml")
 }
 
-// Default is the zero-config setup: local Ollama, no cloud.
+// Default is the zero-config setup: local Ollama, no cloud. It talks to
+// Ollama's native /api/chat (type "ollama"), not the OpenAI-compatible
+// shim, so it can set num_ctx explicitly instead of taking Ollama's
+// 4096-token default; provider.New fills in NumCtx/MaxInputTokens.
 func Default() Config {
 	c := Config{DefaultProvider: "local", Providers: map[string]ProviderBlock{
-		// Ollama serves models at a 4096-token context unless
-		// OLLAMA_CONTEXT_LENGTH says otherwise, and its OpenAI endpoint
-		// silently truncates longer prompts, so budget well under that.
-		"local": {Type: "openai", BaseURL: ollamaURL + "/v1", Model: "qwen2.5:3b", MaxInputTokens: 3000},
+		"local": {Type: "ollama", BaseURL: ollamaURL, Model: "qwen2.5:3b"},
 	}}
 	c.fill()
 	return c
@@ -134,7 +135,7 @@ func (c Config) Provider(name string) (provider.Config, error) {
 	if !ok {
 		return provider.Config{}, fmt.Errorf("provider %q not in config", name)
 	}
-	pc := provider.Config{Name: name, Type: b.Type, BaseURL: b.BaseURL, Model: b.Model, Cloud: b.Cloud, MaxInputTokens: b.MaxInputTokens, Concurrency: b.Concurrency}
+	pc := provider.Config{Name: name, Type: b.Type, BaseURL: b.BaseURL, Model: b.Model, Cloud: b.Cloud, MaxInputTokens: b.MaxInputTokens, Concurrency: b.Concurrency, NumCtx: b.NumCtx}
 	if b.APIKeyEnv != "" {
 		pc.APIKey = os.Getenv(b.APIKeyEnv)
 		if pc.APIKey == "" {

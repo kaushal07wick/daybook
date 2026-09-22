@@ -44,6 +44,36 @@ func TestAnthropic(t *testing.T) {
 	}
 }
 
+func TestOllamaNative(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/chat" {
+			t.Errorf("bad path %s", r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"message":{"content":"{\"ok\":true}"},"prompt_eval_count":11,"eval_count":4}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{Name: "t", Type: "ollama", BaseURL: srv.URL, Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.MaxInputTokens() != 16384*3/4 {
+		t.Fatalf("MaxInputTokens=%d", p.MaxInputTokens())
+	}
+	res, err := p.Complete(context.Background(), Request{System: "sys", User: "u", JSON: true})
+	if err != nil || res.Text != `{"ok":true}` || res.InputTokens != 11 || res.OutputTokens != 4 {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	if got["format"] != "json" {
+		t.Fatalf("body %v", got)
+	}
+	opts, ok := got["options"].(map[string]any)
+	if !ok || opts["num_ctx"] != float64(16384) {
+		t.Fatalf("options %v", got["options"])
+	}
+}
+
 func TestRateLimited(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(429) }))
 	defer srv.Close()

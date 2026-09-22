@@ -5,13 +5,20 @@ import (
 	"strings"
 
 	"github.com/kaushal07wick/daybook/internal/provider"
+	"github.com/kaushal07wick/daybook/internal/source"
 	"github.com/kaushal07wick/daybook/internal/store"
 )
+
+// maxToolRunes caps how much of one tool result reaches the model: a
+// single Bash/Read dump can otherwise blow the whole chunk budget on
+// output the model rarely needs verbatim.
+const maxToolRunes = 800
 
 // Render flattens events into the compact transcript the model reads.
 func Render(evs []store.Event) string {
 	var sb strings.Builder
 	for _, e := range evs {
+		text := strings.TrimSpace(e.Text)
 		switch e.Role {
 		case "user":
 			sb.WriteString("U: ")
@@ -19,8 +26,11 @@ func Render(evs []store.Event) string {
 			sb.WriteString("A: ")
 		default:
 			sb.WriteString("T(" + e.ToolName + "): ")
+			if e.Role == "tool" {
+				text = source.Truncate(text, maxToolRunes)
+			}
 		}
-		sb.WriteString(strings.TrimSpace(e.Text))
+		sb.WriteString(text)
 		sb.WriteString("\n\n")
 	}
 	return strings.TrimSpace(sb.String())

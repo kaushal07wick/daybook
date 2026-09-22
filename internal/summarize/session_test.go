@@ -97,6 +97,14 @@ func TestLongSessionIsChunkedAndReduced(t *testing.T) {
 	}
 }
 
+func TestRenderTruncatesToolOutput(t *testing.T) {
+	evs := []store.Event{{Role: "tool", ToolName: "Bash", Text: strings.Repeat("x", 2000)}}
+	got := Render(evs)
+	if !strings.Contains(got, "…[truncated]") || strings.Count(got, "x") != maxToolRunes {
+		t.Fatalf("len=%d", len(got))
+	}
+}
+
 func TestChunkRespectsBoundaries(t *testing.T) {
 	parts := Chunk("aaaa\n\nbbbb\n\ncccc", 3)
 	if len(parts) != 3 || parts[1] != "bbbb" {
