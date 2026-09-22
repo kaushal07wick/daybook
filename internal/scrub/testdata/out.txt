@@ -1,0 +1,7 @@
+ssh root@<ip-1> -p <secret> then curl http://user:<secret<secret>
+password=<secret> token: <secret> Authorization: Bearer <secret>
+export ANTHROPIC_API_KEY=<key>
+aws <key> and <key> and <key>
+mail <email-1>, again <ip-1> and fe80::<ip-3>
+<private-key>
+Client <redacted-1> asked; also <redacted-1> lowercase. sshpass -p <secret> ssh x
