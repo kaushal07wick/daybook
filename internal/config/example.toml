@@ -1,0 +1,16 @@
+default_provider = "local"
+
+[providers.local]
+type     = "openai"                      # openai-compatible chat completions
+base_url = "http://127.0.0.1:11434/v1"
+model    = "qwen2.5:7b"
+cloud    = false
+
+[providers.claude]
+type        = "anthropic"
+model       = "claude-sonnet-5"
+api_key_env = "ANTHROPIC_API_KEY"
+cloud       = true                       # => scrubbed before sending, always
+
+[privacy]
+redact = ["acme-corp", "10.10.0.206"]    # your own denylist, on top of built-ins
