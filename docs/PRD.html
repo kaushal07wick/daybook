@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>daybook — PRD</title>
+<style>
+  :root{--bg:#faf8f3;--ink:#1c1b18;--mute:#6b6862;--rule:#e2ddd2;--acc:#c2410c;--code:#f1ede4;--ok:#166534;--warn:#92400e}
+  @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#16150f;--ink:#ebe6d9;--mute:#9a958a;--rule:#2d2b24;--acc:#fb923c;--code:#22201a;--ok:#4ade80;--warn:#fbbf24}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,"Inter",system-ui,sans-serif}
+  main{max-width:820px;margin:0 auto;padding:56px 16px 120px}
+  h1{font:600 40px/1.1 "Iowan Old Style","Charter",Georgia,serif;letter-spacing:-.02em;margin:0 0 8px}
+  h2{font:600 24px/1.2 "Iowan Old Style","Charter",Georgia,serif;margin:56px 0 12px;padding-top:20px;border-top:1px solid var(--rule)}
+  h3{font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);margin:28px 0 8px}
+  .meta{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;margin-bottom:40px}
+  .meta b{color:var(--acc)}
+  p{margin:0 0 14px}
+  ul,ol{padding-left:22px;margin:0 0 14px}li{margin:4px 0}
+  code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:var(--code);padding:1px 6px;border-radius:4px}
+  pre{background:var(--code);padding:14px 16px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5}
+  pre code{background:none;padding:0}
+  table{border-collapse:collapse;width:100%;margin:0 0 18px;font-size:14.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{color:var(--mute);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
+  .tag{display:inline-block;font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.06em;padding:4px 7px;border-radius:3px;background:var(--code);color:var(--mute);margin-right:6px}
+  .tag.p0{color:var(--acc)} .tag.ok{color:var(--ok)} .tag.warn{color:var(--warn)}
+  .callout{border-left:3px solid var(--acc);padding:10px 16px;background:var(--code);border-radius:0 6px 6px 0;margin:18px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:600px){.grid{grid-template-columns:1fr}}
+  .card{border:1px solid var(--rule);border-radius:8px;padding:14px 16px}
+  .card h4{margin:0 0 6px;font-size:15px}
+  .card p{margin:0;color:var(--mute);font-size:14px}
+  .flow{font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.7;background:var(--code);padding:16px;border-radius:6px;white-space:pre}
+  .toc{columns:2;font-size:14px;margin-bottom:8px}@media(max-width:600px){.toc{columns:1}}
+  .toc a{color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--rule)}
+  a{color:var(--acc)}
+</style>
+</head>
+<body><main>
+
+<h1>daybook</h1>
+<p style="font-size:19px;color:var(--mute);margin-bottom:18px">A local Mac service that reads every AI-coding session you run — Claude Code, Codex, and whatever comes next — and turns it into daily and weekly digests of what you actually did: the systems, the numbers, the tech, the facts. Yours, on your disk, summarised by any LLM you choose.</p>
+<div class="meta">PRD v0.1 · <b>2026-09-22</b> · author: Kaushal Choudhary · status: <b>draft → build</b> · license: MIT · repo: <code>~/Desktop/workspace/personal/daybook</code></div>
+
+<div class="toc">
+<a href="#problem">1. Problem</a><br><a href="#users">2. Who it's for</a><br><a href="#goals">3. Goals &amp; non-goals</a><br><a href="#stories">4. User stories</a><br><a href="#func">5. Functional requirements</a><br><a href="#nfr">6. Non-functional requirements</a><br><a href="#arch">7. Architecture (summary)</a><br><a href="#data">8. Data model</a><br><a href="#privacy">9. Privacy model</a><br><a href="#stack">10. Stack decision</a><br><a href="#milestones">11. Milestones</a><br><a href="#metrics">12. Success metrics</a><br><a href="#open">13. Open questions</a>
+</div>
+
+<h2 id="problem">1. Problem</h2>
+<p>If you work through an AI coding agent all day, the agent's transcript <em>is</em> your work log — it's the only place that records which server you fixed, what the throughput number was, which library you migrated to, and when. But those transcripts sit as gigabytes of JSONL under <code>~/.claude/projects</code> and <code>~/.codex/sessions</code>, scattered across dozens of repos, and nobody reads them back.</p>
+<p>The consequence: when it's time to write a resume bullet, a weekly update, a build-in-public post, or just answer "what did I do in August?", the facts are gone from memory and buried on disk. On this Mac alone: <b>147 Claude Code transcripts (620 MB) across 14 project dirs + 55 Codex sessions</b>, accumulated in under three months, and zero of it is queryable.</p>
+
+<h2 id="users">2. Who it's for</h2>
+<div class="grid">
+<div class="card"><h4>Primary — the heavy agent user</h4><p>Runs Claude Code / Codex 8–16 h/day across many repos and remote boxes. Wants a digest, not a search box. Cares that client data never leaves the machine unless they say so.</p></div>
+<div class="card"><h4>Secondary — the OSS adopter</h4><p>Installs via <code>brew</code>, points it at their own LLM (Ollama, OpenAI, Anthropic, OpenRouter, Groq…), never touches Go. Expects it to just run and stay out of the way.</p></div>
+</div>
+
+<h2 id="goals">3. Goals &amp; non-goals</h2>
+<h3>Goals</h3>
+<ul>
+<li><span class="tag p0">P0</span>Continuously ingest every new session from all supported agents with no manual step.</li>
+<li><span class="tag p0">P0</span>Produce a <b>daily digest</b> (narrative + structured facts) and a <b>weekly digest</b> that rolls the days up.</li>
+<li><span class="tag p0">P0</span>Work fully offline with a local model (Ollama) by default; cloud providers are one config block away.</li>
+<li><span class="tag p0">P0</span>Never send unscrubbed transcript text to a cloud provider.</li>
+<li><span class="tag">P1</span>Backfill the whole history on first run, resumable, without melting the laptop.</li>
+<li><span class="tag">P1</span>Keep a running <b>skills &amp; facts ledger</b> (tech terms, numbers, hostnames, projects) as a by-product of every digest — the raw material for a resume.</li>
+<li><span class="tag">P1</span>Menubar presence: today's digest one click away.</li>
+<li><span class="tag">P2</span>Export: Markdown, JSON, and "resume bullets" view.</li>
+</ul>
+<h3>Non-goals (v1)</h3>
+<ul>
+<li>Not a chat-with-your-history product. No RAG, no vector DB. Full-text search is enough.</li>
+<li>Not a time tracker. We infer activity from transcripts, we don't watch windows.</li>
+<li>Not multi-user or cloud-synced. One Mac, one user, one SQLite file.</li>
+<li>Not a resume generator. It produces the <em>inputs</em> to a resume, not the document.</li>
+<li>No Linux/Windows in v1 (design doesn't preclude it — only the launchd installer and menubar are Mac-specific).</li>
+</ul>
+
+<h2 id="stories">4. User stories</h2>
+<ol>
+<li>"It's 11 pm. I open the menubar and read a 10-line summary of today with the numbers in it, and I post two of the lines on X."</li>
+<li>"Monday morning I open <b>Week 38</b> and see, per project, what shipped, what broke, and which hosts I touched."</li>
+<li>"I'm updating my resume. I open the ledger, filter by <code>tech</code>, and get 'TensorRT, DeepStream, ByteTrack, NVDEC, WireGuard, k3s, pgvector…' with dates and session links."</li>
+<li>"I install it on a fresh Mac, run <code>daybook install</code>, it finds Ollama and starts backfilling. I go to sleep. In the morning three months of digests exist."</li>
+<li>"I want better summaries. I add <code>[providers.claude]</code> with an API key, set it as default, and the scrubber strips IPs/secrets/customer names before anything is sent."</li>
+<li>"Codex/Cursor/opencode changes its log format. I add one parser file; nothing else changes."</li>
+</ol>
+
+<h2 id="func">5. Functional requirements</h2>
+
+<h3>5.1 Ingest</h3>
+<table>
+<tr><th>ID</th><th>Requirement</th></tr>
+<tr><td>F-1</td><td>Watch <code>~/.claude/projects/**/*.jsonl</code> and <code>~/.codex/sessions/**/*.jsonl</code> with fsnotify; on change, tail from the last byte offset. Restart-safe: offsets persisted.</td></tr>
+<tr><td>F-2</td><td>Parser per source normalises lines into <code>events</code>: <code>(session_id, ts, role ∈ user|assistant|tool, kind, text, tool_name, cwd)</code>. Thinking blocks, token reminders, attachments are dropped. Tool results truncated to 2 KB.</td></tr>
+<tr><td>F-3</td><td>Session is <b>closed</b> when its file has had no writes for 30 min (configurable). Only closed sessions are summarised; still-open ones show as "in progress" in today's view.</td></tr>
+<tr><td>F-4</td><td>Backfill: <code>daybook backfill</code> ingests everything present, then summarises oldest-first with a concurrency cap (default 1 for local models, 4 for cloud). Resumable at any point.</td></tr>
+<tr><td>F-5</td><td>New sources are added by implementing one <code>Source</code> interface (glob + line parser). Claude Code and Codex ship in v1.</td></tr>
+</table>
+
+<h3>5.2 Summarise</h3>
+<table>
+<tr><th>ID</th><th>Requirement</th></tr>
+<tr><td>F-6</td><td><b>Session summary</b> — one LLM call per closed session producing strict JSON: <code>headline, project, work[], tech[], numbers[], facts[], hosts[], outcome</code>. Retried once on invalid JSON; stored raw on second failure so nothing is lost.</td></tr>
+<tr><td>F-7</td><td>Long sessions are chunked at ~24k tokens; chunk summaries are reduced into the session summary (map-reduce). Chunk size is per-provider config.</td></tr>
+<tr><td>F-8</td><td><b>Daily digest</b> — generated at 23:55 local (and on demand) from that day's session summaries: 5–15 line narrative grouped by project + merged structured lists.</td></tr>
+<tr><td>F-9</td><td><b>Weekly digest</b> — Sunday 23:58 from the 7 daily digests. Same shape, plus "themes".</td></tr>
+<tr><td>F-10</td><td>Digests are regenerable: <code>daybook digest --day 2026-09-21 --force</code> after switching providers.</td></tr>
+<tr><td>F-11</td><td><b>Ledger</b> — every <code>tech</code>, <code>number</code>, <code>host</code>, <code>project</code> term from session summaries is upserted into a term table with first-seen, last-seen, count, and session links. No LLM call; pure aggregation.</td></tr>
+</table>
+
+<h3>5.3 Providers</h3>
+<table>
+<tr><th>ID</th><th>Requirement</th></tr>
+<tr><td>F-12</td><td>Two adapters cover the market: <b>OpenAI-compatible chat completions</b> (Ollama, OpenAI, Groq, OpenRouter, Together, DeepSeek, LM Studio, vLLM…) and <b>Anthropic Messages</b>. Anything else is a base_url change.</td></tr>
+<tr><td>F-13</td><td>Config: <code>~/.config/daybook/config.toml</code>. Each provider block has <code>type, base_url, model, api_key_env, cloud (bool), max_input_tokens</code>. Keys are read from env/Keychain, never stored in the file.</td></tr>
+<tr><td>F-14</td><td>First run with no config: probe <code>localhost:11434</code>; if Ollama is present, pick the best installed model and write a default config. If absent, print exactly one line telling the user what to install or configure.</td></tr>
+</table>
+
+<h3>5.4 Surface</h3>
+<table>
+<tr><th>ID</th><th>Requirement</th></tr>
+<tr><td>F-15</td><td>Web UI on <code>127.0.0.1:7331</code>, server-rendered, embedded in the binary. Pages: <b>Today</b>, <b>Day</b>, <b>Week</b>, <b>Ledger</b>, <b>Sessions</b>, <b>Settings</b> (read-only view of config + provider health).</td></tr>
+<tr><td>F-16</td><td>Full-text search (SQLite FTS5) over session summaries and digests.</td></tr>
+<tr><td>F-17</td><td>Menubar icon (P1): shows today's headline count, opens the UI, shows "summarising 3/12…" while busy.</td></tr>
+<tr><td>F-18</td><td>CLI: <code>daybook install | uninstall | serve | backfill | digest | status | export</code>. <code>install</code> writes the launchd plist under <code>~/Library/LaunchAgents</code> and starts it.</td></tr>
+<tr><td>F-19</td><td>Export: <code>daybook export --week 2026-W38 --format md|json</code> and a ledger export.</td></tr>
+</table>
+
+<h2 id="nfr">6. Non-functional requirements</h2>
+<ul>
+<li><b>Idle cost:</b> &lt;0.5 % CPU, &lt;60 MB RSS when watching. No polling — fsnotify only.</li>
+<li><b>Backfill cost:</b> summarising with a local 7B model must not starve the foreground; run at <code>nice 10</code>, concurrency 1, pausable.</li>
+<li><b>Durability:</b> single SQLite file in WAL mode at <code>~/Library/Application Support/daybook/daybook.db</code>. Crash mid-summary loses at most that one summary.</li>
+<li><b>Idempotence:</b> re-ingesting the same file is a no-op; re-running a digest with the same provider+model is a no-op without <code>--force</code>.</li>
+<li><b>Zero cgo, single static binary:</b> so <code>brew install</code> and cross-compiling stay trivial. (Menubar is the one exception — see stack.)</li>
+<li><b>Observability:</b> structured logs via <code>log/slog</code> to <code>~/Library/Logs/daybook/</code>, plus <code>daybook status</code> showing queue depth, last ingest, provider latency.</li>
+<li><b>Tests:</b> parser fixtures from real (scrubbed) transcripts; provider adapters tested against an httptest fake; scrubber has a golden-file test. CI runs <code>go vet</code>, <code>staticcheck</code>, <code>golangci-lint</code>, tests with race detector.</li>
+</ul>
+
+<h2 id="arch">7. Architecture (summary)</h2>
+<div class="flow">~/.claude/projects/**/*.jsonl ─┐
+~/.codex/sessions/**/*.jsonl  ─┤ fsnotify
+                               ▼
+                       ┌─────────────┐   Source interface
+                       │   ingest    │   (claude, codex, …)
+                       └──────┬──────┘
+                              ▼  events, sessions
+                       ┌─────────────┐
+                       │   sqlite    │  WAL · FTS5 · pure-Go driver
+                       └──┬───────┬──┘
+          closed sessions ▼       ▲ summaries, digests, ledger
+                       ┌─────────────┐   scrub() if provider.cloud
+                       │ summarizer  │ ──────────────► Provider
+                       │  (queue)    │   map-reduce     ├ openai-compatible
+                       └──────┬──────┘                  └ anthropic
+                              ▼
+                       ┌─────────────┐
+                       │  scheduler  │  23:55 day · Sun 23:58 week
+                       └──────┬──────┘
+                              ▼
+     http :7331 ◄──── ┌─────────────┐ ────► menubar (P1)
+     (html/template)  │    serve    │
+                      └─────────────┘</div>
+<p>Everything above is one process, one binary, one DB. Packages map 1:1 to boxes: <code>internal/source</code>, <code>internal/store</code>, <code>internal/summarize</code>, <code>internal/provider</code>, <code>internal/scrub</code>, <code>internal/schedule</code>, <code>internal/web</code>, <code>cmd/daybook</code>. Full detail lives in <code>docs/ARCHITECTURE.md</code>.</p>
+
+<h2 id="data">8. Data model</h2>
+<pre><code>sources    (id, kind, path UNIQUE, byte_offset, mtime, last_seen)
+sessions   (id PK, kind, project, cwd, started_at, ended_at, closed, n_events)
+events     (id, session_id, ts, role, kind, tool_name, text)          -- text ≤ 2 KB for tool results
+summaries  (session_id PK, provider, model, json, created_at)         -- F-6 shape
+digests    (period 'day'|'week', key, provider, model, json, md, created_at, PK(period,key))
+terms      (term, kind 'tech'|'number'|'host'|'project', first_seen, last_seen, n, PK(term,kind))
+term_links (term, kind, session_id)
+fts        (FTS5 over summaries.json + digests.md)</code></pre>
+
+<h2 id="privacy">9. Privacy model</h2>
+<div class="callout"><b>Rule:</b> raw transcript text goes to a provider marked <code>cloud = false</code> as-is. For <code>cloud = true</code> it passes through <code>scrub()</code> first, always, no flag to disable it.</div>
+<p><code>scrub()</code> is deterministic regex + a user-supplied denylist: IPv4/IPv6, emails, URLs with credentials, bearer/API-key shapes (<code>sk-</code>, <code>AKIA</code>, <code>ghp_</code>, <code>xox</code>, 32+ hex/base64 runs), <code>password=…</code> / <code>-p …</code> / <code>token:</code> patterns, SSH private-key blocks, and any string listed in <code>[privacy].redact = [...]</code> (customer names, hostnames). Replacements are stable placeholders (<code>&lt;ip-3&gt;</code>) so the model can still reason about "the same host". The scrubbed text is never stored; only the summary is.</p>
+
+<h2 id="stack">10. Stack decision</h2>
+<table>
+<tr><th>Concern</th><th>Choice</th><th>Why (and what was rejected)</th></tr>
+<tr><td>Language</td><td><b>Go 1.23+</b></td><td>Single static binary, launchd-friendly, trivially <code>brew</code>-able, excellent stdlib for HTTP/JSON/embed, matches the author's existing daemons. Rust: slower to iterate, no gain here. Python: venv hell for adopters. Swift: no server/LLM ecosystem.</td></tr>
+<tr><td>DB</td><td>SQLite via <code>modernc.org/sqlite</code></td><td>Pure Go, no cgo, FTS5 included. Postgres is absurd for one user.</td></tr>
+<tr><td>File watching</td><td><code>fsnotify</code></td><td>Kqueue under the hood; the only sane choice on macOS.</td></tr>
+<tr><td>Config</td><td>TOML via <code>BurntSushi/toml</code></td><td>Human-editable, comments allowed; YAML's footguns not worth it.</td></tr>
+<tr><td>LLM clients</td><td>hand-written, <code>net/http</code></td><td>Two endpoints, ~200 lines total. SDKs add versions to chase and hide the request shape.</td></tr>
+<tr><td>Web UI</td><td><code>html/template</code> + <code>embed</code>, ~100 lines vanilla JS</td><td>No build step, no node. It's five read-mostly pages. HTMX/templ rejected as unneeded.</td></tr>
+<tr><td>Scheduler</td><td>in-process <code>time.Timer</code> loop</td><td>Two cron entries; a cron library is overkill.</td></tr>
+<tr><td>Menubar</td><td><b>P1</b>: minimal Swift <code>.app</code> that shells out to <code>daybook status --json</code> and <code>open</code>s the UI</td><td>Keeps the Go binary cgo-free. <code>fyne/systray</code> would drag cgo into every build.</td></tr>
+<tr><td>Packaging</td><td>goreleaser → Homebrew tap + GitHub release</td><td>Standard, zero custom scripts.</td></tr>
+<tr><td>Quality gate</td><td>golangci-lint, staticcheck, race tests, conventional commits, CI on every PR</td><td>Non-negotiable for an OSS repo.</td></tr>
+</table>
+
+<h2 id="milestones">11. Milestones</h2>
+<table>
+<tr><th>#</th><th>Milestone</th><th>Done when</th></tr>
+<tr><td>M0</td><td>Repo, CI, skeleton</td><td><code>go build</code> passes, lint passes, README and ARCHITECTURE.md exist.</td></tr>
+<tr><td>M1</td><td>Ingest</td><td><code>daybook backfill --no-llm</code> loads all 147 + 55 sessions into SQLite; <code>daybook status</code> shows counts. Parser fixtures tested.</td></tr>
+<tr><td>M2</td><td>Summarise</td><td>Session summaries via Ollama with valid JSON ≥95 % of the time; scrubber golden test passes; Anthropic adapter tested against fake.</td></tr>
+<tr><td>M3</td><td>Digests + UI</td><td>Day/Week pages render; scheduler fires; FTS search works; <code>daybook install</code> yields a running launchd service.</td></tr>
+<tr><td>M4</td><td>Ledger + export</td><td>Ledger page with filters; <code>export</code> command.</td></tr>
+<tr><td>M5</td><td>Menubar + release</td><td>Swift menubar app; goreleaser + brew tap; v0.1.0 tagged.</td></tr>
+</table>
+
+<h2 id="metrics">12. Success metrics</h2>
+<ul>
+<li>Day-1: full backfill on this Mac completes overnight on a local 7B model with zero manual intervention.</li>
+<li>Daily: the author reads the digest ≥5 days/week (it's actually useful, not just running).</li>
+<li>Quality: ≥90 % of numbers in a digest trace to a real line in a transcript (spot-checked on 20 sessions).</li>
+<li>OSS: a stranger goes from <code>brew install</code> to first digest in under 10 minutes, per README alone.</li>
+</ul>
+
+<h2 id="open">13. Open questions</h2>
+<ul>
+<li>Session "closed" heuristic — 30 min idle is a guess; Claude Code resumes sessions days later. Treat a resumed session as a new segment for digest purposes?</li>
+<li>Which local model is the default pick? Candidates: <code>qwen2.5:7b</code>, <code>llama3.1:8b</code>, <code>gemma2:9b</code>. Needs a 10-session bake-off on JSON validity.</li>
+<li>Should the ledger de-duplicate near-synonyms ("TensorRT" / "TRT" / "tensorrt") with a normalisation table, or leave it raw in v1?</li>
+<li>Do we ingest <code>~/.claude/history.jsonl</code> (prompt history) too, or is the project transcript enough? (Leaning: enough.)</li>
+</ul>
+
+</main></body></html>

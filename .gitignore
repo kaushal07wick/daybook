@@ -1,0 +1,6 @@
+/daybook
+/dist/
+*.db
+*.db-*
+.DS_Store
+coverage.out
