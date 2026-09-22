@@ -1,0 +1,51 @@
+package claude
+
+import (
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/kaushal07wick/daybook/internal/source"
+)
+
+func TestParseFixture(t *testing.T) {
+	f, err := os.Open("testdata/session.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	evs, err := Source{}.Parse("/x/proj/s-1.jsonl", f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []struct {
+		role source.Role
+		tool string
+		text string
+	}{
+		{source.User, "", "restart the api on box A"},
+		{source.Assistant, "Bash", "$ systemctl restart api"},
+		{source.Assistant, "", "On it."},
+		{source.Tool, "Bash", "ok\n"},
+		{source.Assistant, "", "Restarted; 3 workers up at 40% CPU."},
+	}
+	if len(evs) != len(want) {
+		t.Fatalf("got %d events: %+v", len(evs), evs)
+	}
+	for i, w := range want {
+		e := evs[i]
+		if e.Role != w.role || e.ToolName != w.tool || e.Text != w.text || e.SessionID != "s-1" || e.Kind != "claude" {
+			t.Errorf("%d: %+v", i, e)
+		}
+	}
+	if evs[0].Project != "proj/api" || evs[0].CWD != "/home/me/proj/api" || evs[0].TS.IsZero() {
+		t.Errorf("meta: %+v", evs[0])
+	}
+}
+
+func TestParseSkipsGarbageLines(t *testing.T) {
+	evs, err := Source{}.Parse("p", strings.NewReader("not json\n{\"type\":\"user\"}\n"))
+	if err != nil || len(evs) != 0 {
+		t.Fatalf("evs=%v err=%v", evs, err)
+	}
+}
