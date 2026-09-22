@@ -9,27 +9,62 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kaushal07wick/daybook/internal/source"
 )
 
-// Source is the Codex CLI transcript source.
-type Source struct{}
+// Source is the Codex CLI transcript source. Parse may be called with only
+// the bytes appended since the last call, so call-id → tool-name correlation
+// is kept here, per path, rather than in a local map.
+type Source struct {
+	mu      sync.Mutex
+	pending map[string]map[string]string // path -> call_id -> tool name
+}
 
-func init() { source.Register(Source{}) }
+func init() { source.Register(&Source{}) }
 
 // Kind implements source.Source.
-func (Source) Kind() string { return "codex" }
+func (*Source) Kind() string { return "codex" }
 
 // Globs implements source.Source.
-func (Source) Globs() []string {
+func (*Source) Globs() []string {
 	dir := os.Getenv("CODEX_HOME")
 	if dir == "" {
 		home, _ := os.UserHomeDir()
 		dir = filepath.Join(home, ".codex")
 	}
 	return []string{filepath.Join(dir, "sessions", "*", "*", "*", "*.jsonl")}
+}
+
+// rememberTool records a call_id → name for later lookup by a
+// function_call_output that may arrive in a subsequent Parse call.
+func (s *Source) rememberTool(path, id, name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending == nil {
+		s.pending = map[string]map[string]string{}
+	}
+	m := s.pending[path]
+	if m == nil {
+		m = map[string]string{}
+		s.pending[path] = m
+	}
+	m[id] = name
+}
+
+// toolName looks up and consumes a previously remembered call_id name.
+func (s *Source) toolName(path, id string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.pending[path]
+	if m == nil {
+		return ""
+	}
+	name := m[id]
+	delete(m, id)
+	return name
 }
 
 type line struct {
@@ -51,13 +86,12 @@ type line struct {
 var filenameID = regexp.MustCompile(`^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(.+)\.jsonl$`)
 
 // Parse implements source.Source.
-func (s Source) Parse(path string, r io.Reader) ([]source.Event, error) {
+func (s *Source) Parse(path string, r io.Reader) ([]source.Event, error) {
 	id := ""
 	if m := filenameID.FindStringSubmatch(filepath.Base(path)); m != nil {
 		id = m[1]
 	}
 	cwd := ""
-	tools := map[string]string{}
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1<<20), 64<<20)
 	var out []source.Event
@@ -84,10 +118,10 @@ func (s Source) Parse(path string, r io.Reader) ([]source.Event, error) {
 		case l.Type == "event_msg" && p.Type == "agent_message":
 			e.Role, e.Text = source.Assistant, p.Message
 		case l.Type == "response_item" && p.Type == "function_call":
-			tools[p.CallID] = p.Name
+			s.rememberTool(path, p.CallID, p.Name)
 			e.Role, e.ToolName, e.Text = source.Assistant, p.Name, "$ "+cmdOf(p.Arguments)
 		case l.Type == "response_item" && p.Type == "function_call_output":
-			e.Role, e.ToolName = source.Tool, tools[p.CallID]
+			e.Role, e.ToolName = source.Tool, s.toolName(path, p.CallID)
 			e.Text = source.Truncate(p.Output, source.MaxToolText)
 		default:
 			continue

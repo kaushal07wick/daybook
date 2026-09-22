@@ -9,7 +9,8 @@ import (
 	"time"
 )
 
-// MaxToolText caps stored tool output so one `cat` of a log can't bloat the DB.
+// MaxToolText caps stored tool output, in runes, so one `cat` of a log can't
+// bloat the DB.
 const MaxToolText = 2048
 
 // Role is who produced an event.

@@ -8,27 +8,62 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kaushal07wick/daybook/internal/source"
 )
 
-// Source is the Claude Code transcript source.
-type Source struct{}
+// Source is the Claude Code transcript source. Parse may be called with only
+// the bytes appended since the last call, so tool-use-id → name correlation
+// is kept here, per path, rather than in a local map.
+type Source struct {
+	mu      sync.Mutex
+	pending map[string]map[string]string // path -> tool_use id -> tool name
+}
 
-func init() { source.Register(Source{}) }
+func init() { source.Register(&Source{}) }
 
 // Kind implements source.Source.
-func (Source) Kind() string { return "claude" }
+func (*Source) Kind() string { return "claude" }
 
 // Globs implements source.Source.
-func (Source) Globs() []string {
+func (*Source) Globs() []string {
 	dir := os.Getenv("CLAUDE_CONFIG_DIR")
 	if dir == "" {
 		home, _ := os.UserHomeDir()
 		dir = filepath.Join(home, ".claude")
 	}
 	return []string{filepath.Join(dir, "projects", "*", "*.jsonl")}
+}
+
+// rememberTool records a tool_use id → name for later lookup by a
+// tool_result that may arrive in a subsequent Parse call.
+func (s *Source) rememberTool(path, id, name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending == nil {
+		s.pending = map[string]map[string]string{}
+	}
+	m := s.pending[path]
+	if m == nil {
+		m = map[string]string{}
+		s.pending[path] = m
+	}
+	m[id] = name
+}
+
+// toolName looks up and consumes a previously remembered tool_use name.
+func (s *Source) toolName(path, id string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.pending[path]
+	if m == nil {
+		return ""
+	}
+	name := m[id]
+	delete(m, id)
+	return name
 }
 
 type line struct {
@@ -57,10 +92,9 @@ type block struct {
 // Parse implements source.Source. Unknown or malformed lines are skipped,
 // never fatal: a transcript is append-only and one bad line must not block
 // the rest.
-func (s Source) Parse(_ string, r io.Reader) ([]source.Event, error) {
+func (s *Source) Parse(path string, r io.Reader) ([]source.Event, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1<<20), 64<<20)
-	toolNames := map[string]string{}
 	var out []source.Event
 	for sc.Scan() {
 		var l line
@@ -96,13 +130,13 @@ func (s Source) Parse(_ string, r io.Reader) ([]source.Event, error) {
 			case "text":
 				texts = append(texts, b.Text)
 			case "tool_use":
-				toolNames[b.ID] = b.Name
+				s.rememberTool(path, b.ID, b.Name)
 				e := base
 				e.Role, e.ToolName, e.Text = source.Assistant, b.Name, "$ "+toolInput(b.Input)
 				out = append(out, e)
 			case "tool_result":
 				e := base
-				e.Role, e.ToolName = source.Tool, toolNames[b.ToolUseID]
+				e.Role, e.ToolName = source.Tool, s.toolName(path, b.ToolUseID)
 				e.Text = source.Truncate(resultText(b.Content), source.MaxToolText)
 				out = append(out, e)
 			}

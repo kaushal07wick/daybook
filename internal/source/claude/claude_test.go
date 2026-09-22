@@ -14,7 +14,7 @@ func TestParseFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = f.Close() }()
-	evs, err := Source{}.Parse("/x/proj/s-1.jsonl", f)
+	evs, err := (&Source{}).Parse("/x/proj/s-1.jsonl", f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,8 +44,30 @@ func TestParseFixture(t *testing.T) {
 }
 
 func TestParseSkipsGarbageLines(t *testing.T) {
-	evs, err := Source{}.Parse("p", strings.NewReader("not json\n{\"type\":\"user\"}\n"))
+	evs, err := (&Source{}).Parse("p", strings.NewReader("not json\n{\"type\":\"user\"}\n"))
 	if err != nil || len(evs) != 0 {
 		t.Fatalf("evs=%v err=%v", evs, err)
+	}
+}
+
+// TestToolNameSurvivesSplitParse guards against tool_use and its tool_result
+// arriving in separate Parse calls (the real ingest path parses only the
+// bytes appended since the last read): the id->name correlation must
+// survive across calls on the same *Source and path.
+func TestToolNameSurvivesSplitParse(t *testing.T) {
+	toolUse := `{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"systemctl restart api"}}]},"uuid":"a1","timestamp":"2026-09-01T10:00:05.000Z","cwd":"/home/me/proj/api","sessionId":"s-1","isSidechain":false}` + "\n"
+	toolResult := `{"type":"user","message":{"role":"user","content":[{"tool_use_id":"t1","type":"tool_result","content":"ok\n","is_error":false}]},"uuid":"u2","timestamp":"2026-09-01T10:00:06.000Z","cwd":"/home/me/proj/api","sessionId":"s-1","isSidechain":false}` + "\n"
+
+	src := &Source{}
+	const path = "/x/proj/s-1.jsonl"
+	if _, err := src.Parse(path, strings.NewReader(toolUse)); err != nil {
+		t.Fatal(err)
+	}
+	evs, err := src.Parse(path, strings.NewReader(toolResult))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 || evs[0].ToolName != "Bash" {
+		t.Fatalf("%+v", evs)
 	}
 }

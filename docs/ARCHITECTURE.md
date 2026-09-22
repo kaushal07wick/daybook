@@ -69,6 +69,8 @@ type Source interface {
 }
 ```
 
+Parse may be called with only the bytes appended since the last call; implementations keep any cross-line correlation state (e.g. tool-use id → name) per path.
+
 ```go
 // internal/provider
 type Provider interface {
